@@ -25,6 +25,16 @@ def immediate_win_state():
     return board, reserves
 
 
+def board_move_win_state():
+    """Player 1 can complete row 0 by moving its small from (1, 0)."""
+    board, reserves = empty_state()
+    board[0, 0, SMALL] = PLAYER_1
+    board[0, 1, MEDIUM] = PLAYER_1
+    board[0, 2, LARGE] = PLAYER_1
+    board[1, 0, SMALL] = PLAYER_1
+    return board, reserves
+
+
 def opponent_threat_state():
     """Player 2 threatens to complete row 1; Player 1 can occupy (1, 3)."""
     board, reserves = empty_state()
@@ -49,5 +59,6 @@ def uncovering_risk_state():
 
 
 IMMEDIATE_WIN = Move(None, (0, 3), SMALL)
+BOARD_MOVE_WIN = Move((1, 0), (0, 3), SMALL)
 OPPONENT_WIN = Move(None, (1, 3), SMALL)
 DANGEROUS_UNCOVER = Move((2, 3), (3, 0), MEDIUM)

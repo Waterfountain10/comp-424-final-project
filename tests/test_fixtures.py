@@ -2,9 +2,9 @@ import unittest
 
 from constants import PLAYER_1, PLAYER_2
 from helpers import check_move_validity, check_winner, copy_state, execute_move
-from tests.fixtures import (DANGEROUS_UNCOVER, IMMEDIATE_WIN, OPPONENT_WIN,
-                            immediate_win_state, opponent_threat_state,
-                            uncovering_risk_state)
+from tests.fixtures import (BOARD_MOVE_WIN, DANGEROUS_UNCOVER, IMMEDIATE_WIN,
+                            OPPONENT_WIN, board_move_win_state, immediate_win_state,
+                            opponent_threat_state, uncovering_risk_state)
 
 
 class TacticalFixtureTests(unittest.TestCase):
@@ -19,6 +19,9 @@ class TacticalFixtureTests(unittest.TestCase):
 
     def test_immediate_win_fixture(self):
         self.assert_move_wins(immediate_win_state(), PLAYER_1, IMMEDIATE_WIN)
+
+    def test_board_move_win_fixture(self):
+        self.assert_move_wins(board_move_win_state(), PLAYER_1, BOARD_MOVE_WIN)
 
     def test_opponent_threat_fixture(self):
         self.assert_move_wins(opponent_threat_state(), PLAYER_2, OPPONENT_WIN)
