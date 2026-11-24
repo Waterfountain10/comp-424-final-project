@@ -25,6 +25,7 @@
 !/agents/greedy_agent.py
 !/agents/human_agent.py
 !/agents/student_agent.py
+!/agents/docs/
 
 !/tests/
 /tests/*
