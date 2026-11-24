@@ -26,4 +26,8 @@
 !/agents/human_agent.py
 !/agents/student_agent.py
 
+!/tests/
+/tests/*
+!/tests/*.py
+
 !/game_rules.txt

@@ -1,3 +1,7 @@
+- name: "William Kiem, Lafond"
+  mcgill_id: "261176778"
+  email: "william.lafond@mail.mcgill.ca"
+
 - name: "Your full name as it appears on your transcript"
   mcgill_id: "Your McGill ID"
   email: "email@mail.mcgill.ca"
