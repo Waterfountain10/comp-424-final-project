@@ -2,6 +2,24 @@
 
 **Project description & template:** https://www.overleaf.com/project/6adc1036c0b369a348637ee4/share#f7b97c81b2af34dc012345849ea4608f6f9df6465bc80718
 
+## How to test — William
+
+```bash
+python3.11 -m unittest discover -s tests -v
+```
+Runs the unit and tactical tests.
+
+```bash
+python3.11 validate_submission.py agents/student_agent.py
+```
+Checks that the agent follows the submission rules.
+
+```bash
+python3.11 simulator.py --player_1 student_agent --player_2 random_agent --autoplay --autoplay_runs 20 --strict
+python3.11 simulator.py --player_1 student_agent --player_2 greedy_agent --autoplay --autoplay_runs 20 --strict
+```
+Runs complete seat-swapped games against both supplied baselines.
+
 ## Setup
 To set up your Python environment, we highly suggest using a virtual environment to keep your dependencies in order. Run:
 ```bash
