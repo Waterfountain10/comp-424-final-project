@@ -20,6 +20,14 @@ python3.11 simulator.py --player_1 student_agent --player_2 greedy_agent --autop
 ```
 Runs complete seat-swapped games against both supplied baselines.
 
+| Commit | Test area | What it checks | Why it exists |
+|---|---|---|---|
+| `5bf932f` | Test setup | The framework creates a valid game with legal opening moves. | Confirms the test environment works. |
+| `981b8d3` | Tactical fixtures | Winning, blocking, and uncovering positions behave according to the official helpers. | Proves the handcrafted test states are valid. |
+| `57babb9` | Agent contract | The agent returns a legal `Move` in both seats and several positions. | Catches crashes, wrong return types, and illegal moves. |
+| `3d30262` | Immediate wins | The agent takes available placement and board-move wins. | Confirms search recognizes terminal wins. |
+| `32b640c` | Defense | The agent blocks immediate losses and avoids uncovering an opponent line. | Confirms defensive and game-specific correctness. |
+
 ## Setup
 To set up your Python environment, we highly suggest using a virtual environment to keep your dependencies in order. Run:
 ```bash
