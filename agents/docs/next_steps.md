@@ -8,3 +8,5 @@
 8. Try different heuristic weights by game stage: useful lines and reserves early, threats and forced wins as the board fills
 9. Test short winning sequences against common openings: match the obstacle and reserves, and return to normal search when the opponent deviates
 10. Try adapting heuristic weights to repeated opponent choices within a game, while still checking their strongest replies
+11. Tune heuristic weights / formulas w/ automated strategy to find optimal (if possible, idk)
+12. Concurrency? Multithreading? other standard python optimization techniques? better data structures and algos choices?
