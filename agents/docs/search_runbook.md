@@ -14,12 +14,18 @@ Run every unit and tactical test:
 .venv/bin/python -m unittest discover -s tests -v
 ```
 
-Expected: all 12 tests pass.
+Expected after the heuristic is implemented: all 18 tests pass. Until then, the six heuristic tests fail with `NotImplementedError` while the existing 12 tests pass.
 
 Run only the search-related tests:
 
 ```bash
 .venv/bin/python -m unittest tests.test_agent_contract tests.test_agent_wins tests.test_agent_defense -v
+```
+
+Run only Jacob's heuristic acceptance tests:
+
+```bash
+.venv/bin/python -m unittest tests.test_agent_heuristic -v
 ```
 
 Run the official submission checks and sandbox games:
