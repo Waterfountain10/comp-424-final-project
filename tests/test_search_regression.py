@@ -2,8 +2,9 @@
 
 import time
 import unittest
+from unittest.mock import patch
 
-from agents.student_agent import StudentAgent, WIN_SCORE
+from agents.student_agent import StudentAgent, WIN_SCORE, _SearchTimeout
 from constants import PLAYER_1, PLAYER_2
 from helpers import (
     check_winner, copy_state, execute_move, get_valid_moves, new_game,
@@ -99,9 +100,12 @@ class AlphaBetaEquivalenceTests(unittest.TestCase):
                 with self.subTest(seed=seed, player=player):
                     expected = exhaustive_root(board, reserves, player, depth=2)
                     call_board, call_reserves = copy_state(board, reserves)
-                    actual = StudentAgent().step(
-                        call_board, call_reserves, player, 3 - player
-                    )
+                    # Hold the new iterative agent at the legacy depth-2
+                    # limit to compare identical search horizons.
+                    with patch("agents.student_agent.MAX_SEARCH_DEPTH", 2):
+                        actual = StudentAgent().step(
+                            call_board, call_reserves, player, 3 - player
+                        )
                     self.assertEqual(actual, expected)
 
     def test_alpha_beta_reduces_work_without_changing_score(self):
@@ -128,6 +132,40 @@ class AlphaBetaEquivalenceTests(unittest.TestCase):
             actual_calls[0], nodes[0],
             "Expected alpha-beta to prune some branches at depth 2",
         )
+
+
+class IterativeDeepeningTests(unittest.TestCase):
+    def test_timeout_returns_last_completed_depth(self):
+        board, reserves = new_game(seed=0)[:2]
+        moves = get_valid_moves(board, reserves, PLAYER_1)
+        agent = StudentAgent()
+
+        with patch.object(agent, "_winning_moves", return_value=[]), \
+             patch.object(agent, "_search_root", side_effect=[
+                 (moves[0], 0), (moves[1], 0), _SearchTimeout()
+             ]) as search:
+            selected = agent.step(board, reserves, PLAYER_1, PLAYER_2)
+
+        self.assertEqual(selected, moves[1])
+        self.assertEqual([call.args[4] for call in search.call_args_list],
+                         [1, 2, 3])
+
+    def test_timeout_before_first_completed_depth_uses_fallback(self):
+        board, reserves = new_game(seed=1)[:2]
+        fallback = get_valid_moves(board, reserves, PLAYER_1)[0]
+        agent = StudentAgent()
+
+        with patch.object(agent, "_winning_moves", return_value=[]), \
+             patch.object(agent, "_search_root", side_effect=_SearchTimeout()):
+            selected = agent.step(board, reserves, PLAYER_1, PLAYER_2)
+        self.assertEqual(selected, fallback)
+
+    def test_completed_depth_one_matches_reference(self):
+        board, reserves = new_game(seed=2)[:2]
+        expected = exhaustive_root(board, reserves, PLAYER_1, depth=1)
+        with patch("agents.student_agent.MAX_SEARCH_DEPTH", 1):
+            actual = StudentAgent().step(board, reserves, PLAYER_1, PLAYER_2)
+        self.assertEqual(actual, expected)
 
 
 if __name__ == "__main__":

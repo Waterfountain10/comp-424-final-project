@@ -23,3 +23,5 @@ jobs:
         run: python -m unittest discover -s tests -v
       - name: Validate submission
         run: python validate_submission.py agents/student_agent.py
+      - name: Short paired greedy benchmark (4 games)
+        run: python simulator.py --player_1 student_agent --player_2 greedy_agent --autoplay --autoplay_runs 4 --strict --seed 0 --quiet

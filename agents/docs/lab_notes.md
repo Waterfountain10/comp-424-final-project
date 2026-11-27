@@ -34,3 +34,27 @@ The student agent played legally with no strikes but lost by line after 86 plies
 ### Next hypothesis
 
 Connecting Jacob's heuristic to the depth-limit leaf score should reduce repetitive draws and improve wins against greedy. After that, test iterative deepening, tactical move ordering, and fork detection as separate changes against this fixed-seed baseline.
+
+## 2026-11-27 — alpha-beta equivalence regression (commit `c469db2`)
+
+Automated in GitHub Actions on Python 3.11, run [46048620988](https://github.com/Waterfountain10/comp-424-final-project/actions/runs/46048620988).
+
+- New exhaustive-minimax equivalence checks: **3/3 passed** (1.444 s).
+- Complete original+new unittest suite: **15/15 passed** (1.593 s).
+- Official validator: **RESULT: PASS**.
+- Scenarios: deterministic starting seeds 0 and 1, tactical win/defense/uncovering positions, both seats, depths 1 and 2.
+- Tests include matching root moves under the same tie-break and fewer explored nodes for alpha-beta on a reference position.
+
+These checks establish the correctness of terminal-only alpha-beta at the tested depths; they do **not** establish strategic win rates.
+
+## 2026-11-27 — iterative deepening experiment
+
+Implementation: run complete searches at depths 1 through 4, subject to a 0.25 s safety margin below the 2-second move limit. Preserve the last *fully completed* depth's move when deeper search times out; otherwise use the first legal move as fallback. Terminal-only leaves still score 0 pending the heuristic.
+
+Planned verification:
+- Forced timeout after depths 1 and 2 completes returns depth 2's move.
+- Timeout before completing depth 1 returns a legal fallback.
+- Limiting iterative deepening to depth 1 or 2 matches the exhaustive reference at the same depth.
+- Run automated tests, official validation, and a small paired greedy-agent smoke benchmark under strict timing.
+
+**Result:** pending workflow run for iterative-deepening commit (to be updated after execution).

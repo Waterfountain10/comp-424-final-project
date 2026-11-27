@@ -18,9 +18,8 @@ from helpers import (
 )
 from store import register_agent
 
-# todo: search deeper with iterative deepening until the deadline
-# current: every move searches exactly two plies
-SEARCH_DEPTH = 2
+# Search progressively deeper, always retaining the last fully completed result.
+MAX_SEARCH_DEPTH = 4
 SEARCH_MARGIN = 0.25
 WIN_SCORE = 1_000_000
 
@@ -38,61 +37,63 @@ class StudentAgent(Agent):
         self.name = "StudentAgent"
 
     def step(self, board, reserves, player, opponent):
-        """Return the Move you want to play.
-
-        Takes: board, reserves - your own copies of the current position.
-               player, opponent - your player number (1 or 2) and the other one.
-        Agent.step in agents/agent.py explains each argument and the time limit.
-        """
-        start = time.perf_counter()
-        deadline = start + STEP_TIME_LIMIT - SEARCH_MARGIN
-        # ALLOW_MOVES and WIN_LENGTH (from constants) are the rule flags of this game.
-        # helpers.get_valid_moves / check_winner already respect them; your own
-        # move generator and evaluation function must too.
-
-        # Keep a legal move ready before doing any tactical checks or search.
+        """Select the best fully completed depth before the move deadline."""
+        deadline = time.perf_counter() + STEP_TIME_LIMIT - SEARCH_MARGIN
         moves = get_valid_moves(board, reserves, player)
-        fallback = moves[0]
+        # Always keep a legal fallback, including when depth one times out.
+        best_completed_move = moves[0]
 
-        best_move = fallback
         try:
-            # todo: detect forced blocks and fork threats before search
-            # current: depth-two search only catches immediate opponent wins
-            # todo: search wins, blocks, and threats before ordinary moves
-            # current: immediate wins come first; other moves keep helper order
             wins = self._winning_moves(board, reserves, player, deadline)
             if wins:
                 return wins[0]
 
-            best_score = -WIN_SCORE
-            alpha, beta = -WIN_SCORE, WIN_SCORE
-            for move in moves:
+            for depth in range(1, MAX_SEARCH_DEPTH + 1):
                 if time.perf_counter() >= deadline:
-                    raise _SearchTimeout
-                next_board, next_reserves = copy_state(board, reserves)
-                execute_move(next_board, next_reserves, player, move)
-                winner = check_winner(next_board, player)
-                if winner == opponent:
-                    score = -WIN_SCORE
-                else:
-                    score = self._minimax(
-                        next_board,
-                        next_reserves,
-                        opponent,
-                        player,
-                        opponent,
-                        SEARCH_DEPTH - 1,
-                        alpha,
-                        beta,
-                        deadline,
-                    )
-                if score > best_score:
-                    best_score = score
-                    best_move = move
-                alpha = max(alpha, best_score)
+                    break
+                # The candidate is committed only after the *whole* root
+                # search finishes. Never return a partially searched depth.
+                candidate, score = self._search_root(
+                    board, reserves, player, opponent, depth, deadline
+                )
+                best_completed_move = candidate
+                if score == WIN_SCORE:
+                    # A forced win was proven at this depth.
+                    break
         except _SearchTimeout:
             pass
-        return best_move
+
+        return best_completed_move
+
+    def _search_root(self, board, reserves, player, opponent, depth, deadline):
+        """Return the move and score from one fully completed search depth."""
+        moves = get_valid_moves(board, reserves, player)
+        best_move = moves[0]
+        best_score = -WIN_SCORE
+        alpha, beta = -WIN_SCORE, WIN_SCORE
+
+        for move in moves:
+            if time.perf_counter() >= deadline:
+                raise _SearchTimeout
+            child_board, child_reserves = copy_state(board, reserves)
+            execute_move(child_board, child_reserves, player, move)
+            winner = check_winner(child_board, player)
+
+            if winner == player:
+                score = WIN_SCORE
+            elif winner == opponent:
+                score = -WIN_SCORE
+            else:
+                score = self._minimax(
+                    child_board, child_reserves, opponent, player, opponent,
+                    depth - 1, alpha, beta, deadline,
+                )
+
+            if score > best_score:
+                best_score, best_move = score, move
+            alpha = max(alpha, best_score)
+
+        return best_move, best_score
 
     def _minimax(
         self, board, reserves, to_move, player, opponent, depth, alpha, beta, deadline
@@ -103,10 +104,6 @@ class StudentAgent(Agent):
         if depth == 0:
             # todo: return evaluate once the heuristic is ready, for now return neutral score <--- Jacob's work
             return 0
-        # if depth == 0:
-        #     return self.evaluate(
-        #         board, reserves, player, opponent
-        #     )
 
         # todo: apply tactical move ordering at every search node
         # current: recursive nodes keep get_valid_moves order
