@@ -23,6 +23,7 @@ MAX_SEARCH_DEPTH = 3  # todo: raise after evaluation and move ordering are faste
 SEARCH_MARGIN = 0.25
 WIN_SCORE = 1_000_000
 SEARCH_BOUND = WIN_SCORE * 2
+WEIGHTS = {"lines": 1, "reserves": 1, "threats": 1, "vulnerability": 1}
 
 
 class _SearchTimeout(Exception):
@@ -183,17 +184,17 @@ class StudentAgent(Agent):
               they own all but one square, even if that last square has an opponent piece)
         - Reserves:
             - bigger pieces in reserves are worth more points as they give us great optionality in the future, small though cause we dont want to hoard
-        - Double Threats: bonus for 2 or more distinct winning cells
+        - Threats: small bonus for one winning cell, bigger bonus for 2 or more
         - Vulnerability: check the opponent's reserves and bigger pieces they can move from the board
         """
         # TODO: benchmark evaluation cost before increasing search depth
         #TODO find time / space complexities
         #TODO consider last mover
         
-        score = self._score_lines(board, reserves, player, opponent)
-        score += self._score_reserves(reserves, player, opponent)
-        score += self._score_threats(board, reserves, player, opponent)
-        score += self._score_vulnerability(board, reserves, player, opponent)
+        score = WEIGHTS["lines"] * self._score_lines(board, reserves, player, opponent)
+        score += WEIGHTS["reserves"] * self._score_reserves(board, reserves, player, opponent)
+        score += WEIGHTS["threats"] * self._score_threats(board, reserves, player, opponent)
+        score += WEIGHTS["vulnerability"] * self._score_vulnerability(board, reserves, player, opponent)
         
         return score
 
@@ -275,7 +276,7 @@ class StudentAgent(Agent):
                 score -= side_score
         return score
 
-    def _score_reserves(self, reserves, player, opponent):
+    def _score_reserves(self, board, reserves, player, opponent):
         """what the pieces left in reserve are worth"""
         ours = self._reserve_counts(reserves, player)
         theirs = self._reserve_counts(reserves, opponent)
@@ -293,10 +294,10 @@ class StudentAgent(Agent):
         return score
 
     def _score_threats(self, board, reserves, player, opponent):
-        """a threat is where theres two or more ways to win on the next move"""
+        """winning cells for us vs them"""
         
         score = 0
-        for side, bonus in [(player, 1000), (opponent, -1000)]:
+        for side, sign in [(player, 1), (opponent, -1)]:
             targets = set() # DISTINCT winning cells, if len > 1 theres a fork
             
             for move in self._winning_moves(board, reserves, side):
@@ -304,7 +305,9 @@ class StudentAgent(Agent):
                 
             # weight 2 ways to win same as >2
             if len(targets) >= 2:
-                score += bonus
+                score += sign * 1000
+            elif len(targets) == 1:
+                score += sign # line score already gives a bonus for this
                 
         return score
 
