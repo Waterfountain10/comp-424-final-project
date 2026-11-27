@@ -40,6 +40,7 @@ class StudentAgent(Agent):
 
         best_move = fallback
         best_score = -WIN_SCORE
+        alpha, beta = -WIN_SCORE, WIN_SCORE
         for move in moves:
             next_board, next_reserves = copy_state(board, reserves)
             execute_move(next_board, next_reserves, player, move)
@@ -48,14 +49,17 @@ class StudentAgent(Agent):
                 score = -WIN_SCORE
             else:
                 score = self._minimax(next_board, next_reserves, opponent,
-                                      player, opponent, SEARCH_DEPTH - 1)
+                                      player, opponent, SEARCH_DEPTH - 1,
+                                      alpha, beta)
             if score > best_score:
                 best_score = score
                 best_move = move
+            alpha = max(alpha, best_score)
         return best_move
 
-    def _minimax(self, board, reserves, to_move, player, opponent, depth):
-        """Return a terminal-only minimax score from player's perspective."""
+    def _minimax(self, board, reserves, to_move, player, opponent, depth,
+                 alpha, beta):
+        """Return a terminal-only alpha-beta score from player's perspective."""
         if depth == 0:
             return 0
 
@@ -75,11 +79,16 @@ class StudentAgent(Agent):
                 score = -WIN_SCORE
             else:
                 score = self._minimax(next_board, next_reserves, 3 - to_move,
-                                      player, opponent, depth - 1)
+                                      player, opponent, depth - 1,
+                                      alpha, beta)
             if maximizing:
                 best_score = max(best_score, score)
+                alpha = max(alpha, best_score)
             else:
                 best_score = min(best_score, score)
+                beta = min(beta, best_score)
+            if beta <= alpha:
+                break
         return best_score
 
     def evaluate(self, board, reserves, player, opponent) -> int:
