@@ -1,31 +1,76 @@
-# Baseline search runbook
+# Search runbook
 
-## Current flow
+Run commands from the repository root. Use the Python 3.11 virtual environment:
 
-1. `World` checks whether the game is over and gives the agent copies of the board and reserves.
-2. `StudentAgent.step` must return one legal `Move` within two seconds.
-3. Search should generate moves with `get_valid_moves`, copy states with `copy_state`, and apply moves with `execute_move`.
-4. After every simulated move, `check_winner(next_board, last_mover)` handles normal wins and the opponent-first uncovering rule.
-5. The referee checks time and legality, applies the move, and records times, strikes, and the result.
+```bash
+.venv/bin/python --version
+```
 
-## Missing baseline pieces
+## Test
 
-- Replace the random move in `step` with a legal fallback and fixed-depth alpha-beta search.
-- Add maximizing and minimizing recursion with terminal win/loss scores.
-- Stop search before the two-second limit and return the fallback if search is incomplete.
-- Handle positions with no legal moves.
-- Use a neutral leaf score until Jacob's evaluation functions are complete, then connect `evaluate` in a separate integration commit.
-- Order immediate wins and safe defenses before ordinary moves in a separate feature.
+Run every unit and tactical test:
 
-## Test runbook
+```bash
+.venv/bin/python -m unittest discover -s tests -v
+```
 
-Run from the repository root with the Python 3.11 virtual environment active.
+Expected: all 12 tests pass.
 
-| Check | Command | Expected baseline-search result |
-|---|---|---|
-| Unit and tactical tests | `python3.11 -m unittest discover -s tests -v` | All 11 tests pass. |
-| Official validator | `python3.11 validate_submission.py agents/student_agent.py` | `RESULT: PASS`, zero strikes or forfeits, and no timing warning. |
-| Random baseline | `python3.11 simulator.py --player_1 student_agent --player_2 random_agent --autoplay --autoplay_runs 20 --strict` | Completes all 20 games in both seats with zero strikes and forfeits; record W/D/L and move times. |
-| Greedy baseline | `python3.11 simulator.py --player_1 student_agent --player_2 greedy_agent --autoplay --autoplay_runs 20 --strict` | Completes all 20 games in both seats with zero strikes and forfeits; record W/D/L and move times. |
+Run only the search-related tests:
 
-Passing the validator establishes compatibility, not playing strength. Random and greedy W/D/L are measurements rather than unit-test pass conditions. On macOS, `--strict` may warn that some Linux sandbox protections are unavailable.
+```bash
+.venv/bin/python -m unittest tests.test_agent_contract tests.test_agent_wins tests.test_agent_defense -v
+```
+
+Run the official submission checks and sandbox games:
+
+```bash
+.venv/bin/python validate_submission.py agents/student_agent.py
+```
+
+Expected: `RESULT: PASS`, zero strikes, zero forfeits, and no timing warning. macOS may warn that it cannot enforce the Linux memory limit.
+
+## Run
+
+Run one reproducible text game:
+
+```bash
+.venv/bin/python simulator.py --player_1 student_agent --player_2 greedy_agent --seed 0
+```
+
+Watch the same game in the GUI:
+
+```bash
+.venv/bin/python simulator.py --player_1 student_agent --player_2 greedy_agent --seed 0 --display --display_delay 0.5
+```
+
+Run paired games against both supplied baselines:
+
+```bash
+.venv/bin/python simulator.py --player_1 student_agent --player_2 random_agent --autoplay --autoplay_runs 20 --strict --seed 0
+.venv/bin/python simulator.py --player_1 student_agent --player_2 greedy_agent --autoplay --autoplay_runs 20 --strict --seed 0
+```
+
+Record W/D/L, results by seat, mean and maximum move time, strikes, and forfeits.
+
+## Debug
+
+Reproduce a failure with the seed printed by the simulator:
+
+```bash
+.venv/bin/python simulator.py --player_1 student_agent --player_2 greedy_agent --seed <seed>
+```
+
+Run one failing test directly:
+
+```bash
+.venv/bin/python -m unittest tests.test_agent_defense.DefensiveTacticsTests.test_blocks_opponents_immediate_win -v
+```
+
+Check the local changes before committing:
+
+```bash
+git diff --check
+git diff
+git status --short
+```
