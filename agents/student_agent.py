@@ -7,6 +7,9 @@ from constants import *
 import numpy as np
 import time
 
+SEARCH_DEPTH = 2
+WIN_SCORE = 1_000_000
+
 @register_agent("student_agent")          # do not change this string
 class StudentAgent(Agent):
     def __init__(self):
@@ -34,7 +37,50 @@ class StudentAgent(Agent):
         wins = self._winning_moves(board, reserves, player)
         if wins:
             return wins[0]
-        return fallback
+
+        best_move = fallback
+        best_score = -WIN_SCORE
+        for move in moves:
+            next_board, next_reserves = copy_state(board, reserves)
+            execute_move(next_board, next_reserves, player, move)
+            winner = check_winner(next_board, player)
+            if winner == opponent:
+                score = -WIN_SCORE
+            else:
+                score = self._minimax(next_board, next_reserves, opponent,
+                                      player, opponent, SEARCH_DEPTH - 1)
+            if score > best_score:
+                best_score = score
+                best_move = move
+        return best_move
+
+    def _minimax(self, board, reserves, to_move, player, opponent, depth):
+        """Return a terminal-only minimax score from player's perspective."""
+        if depth == 0:
+            return 0
+
+        moves = get_valid_moves(board, reserves, to_move)
+        if not moves:
+            return -WIN_SCORE if to_move == player else WIN_SCORE
+
+        maximizing = to_move == player
+        best_score = -WIN_SCORE if maximizing else WIN_SCORE
+        for move in moves:
+            next_board, next_reserves = copy_state(board, reserves)
+            execute_move(next_board, next_reserves, to_move, move)
+            winner = check_winner(next_board, to_move)
+            if winner == player:
+                score = WIN_SCORE
+            elif winner == opponent:
+                score = -WIN_SCORE
+            else:
+                score = self._minimax(next_board, next_reserves, 3 - to_move,
+                                      player, opponent, depth - 1)
+            if maximizing:
+                best_score = max(best_score, score)
+            else:
+                best_score = min(best_score, score)
+        return best_score
 
     def evaluate(self, board, reserves, player, opponent) -> int:
         """
