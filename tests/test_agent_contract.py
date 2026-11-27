@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from agents.student_agent import StudentAgent
 from constants import PLAYER_1, PLAYER_2
@@ -25,6 +26,11 @@ class AgentContractTests(unittest.TestCase):
                 with self.subTest(seed=seed, player=player):
                     board, reserves, _, _ = new_game(seed)
                     self.assert_returns_legal_move(board, reserves, player)
+
+    def test_timeout_returns_legal_fallback(self):
+        board, reserves, _, _ = new_game(seed=0)
+        with patch("agents.student_agent.time.perf_counter", side_effect=(0.0, 10.0)):
+            self.assert_returns_legal_move(board, reserves, PLAYER_1)
 
     def test_legal_moves_in_tactical_positions(self):
         positions = (

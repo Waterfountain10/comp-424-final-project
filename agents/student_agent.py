@@ -1,16 +1,35 @@
 """Student agent: edit ONLY this file."""
-from agents.agent import Agent
-from store import register_agent
-from helpers import (Move, get_valid_moves, execute_move, check_winner,
-                     check_endgame, copy_state, top_view, LINES)
-from constants import *
-import numpy as np
+
 import time
 
+import numpy as np
+
+from agents.agent import Agent
+from constants import *
+from helpers import (
+    LINES,
+    Move,
+    check_endgame,
+    check_winner,
+    copy_state,
+    execute_move,
+    get_valid_moves,
+    top_view,
+)
+from store import register_agent
+
+# todo: search deeper with iterative deepening until the deadline
+# current: every move searches exactly two plies
 SEARCH_DEPTH = 2
+SEARCH_MARGIN = 0.25
 WIN_SCORE = 1_000_000
 
-@register_agent("student_agent")          # do not change this string
+
+class _SearchTimeout(Exception):
+    """stop search and return the best completed move"""
+
+
+@register_agent("student_agent")  # do not change this string
 class StudentAgent(Agent):
     def __init__(self):
         """Set up your agent. This runs once per game, before the first move, and must finish
@@ -26,43 +45,73 @@ class StudentAgent(Agent):
         Agent.step in agents/agent.py explains each argument and the time limit.
         """
         start = time.perf_counter()
+        deadline = start + STEP_TIME_LIMIT - SEARCH_MARGIN
         # ALLOW_MOVES and WIN_LENGTH (from constants) are the rule flags of this game.
         # helpers.get_valid_moves / check_winner already respect them; your own
         # move generator and evaluation function must too.
-        
+
         # Keep a legal move ready before doing any tactical checks or search.
         moves = get_valid_moves(board, reserves, player)
         fallback = moves[0]
 
-        wins = self._winning_moves(board, reserves, player)
-        if wins:
-            return wins[0]
-
         best_move = fallback
-        best_score = -WIN_SCORE
-        alpha, beta = -WIN_SCORE, WIN_SCORE
-        for move in moves:
-            next_board, next_reserves = copy_state(board, reserves)
-            execute_move(next_board, next_reserves, player, move)
-            winner = check_winner(next_board, player)
-            if winner == opponent:
-                score = -WIN_SCORE
-            else:
-                score = self._minimax(next_board, next_reserves, opponent,
-                                      player, opponent, SEARCH_DEPTH - 1,
-                                      alpha, beta)
-            if score > best_score:
-                best_score = score
-                best_move = move
-            alpha = max(alpha, best_score)
+        try:
+            # todo: detect forced blocks and fork threats before search
+            # current: depth-two search only catches immediate opponent wins
+            # todo: search wins, blocks, and threats before ordinary moves
+            # current: immediate wins come first; other moves keep helper order
+            wins = self._winning_moves(board, reserves, player, deadline)
+            if wins:
+                return wins[0]
+
+            best_score = -WIN_SCORE
+            alpha, beta = -WIN_SCORE, WIN_SCORE
+            for move in moves:
+                if time.perf_counter() >= deadline:
+                    raise _SearchTimeout
+                next_board, next_reserves = copy_state(board, reserves)
+                execute_move(next_board, next_reserves, player, move)
+                winner = check_winner(next_board, player)
+                if winner == opponent:
+                    score = -WIN_SCORE
+                else:
+                    score = self._minimax(
+                        next_board,
+                        next_reserves,
+                        opponent,
+                        player,
+                        opponent,
+                        SEARCH_DEPTH - 1,
+                        alpha,
+                        beta,
+                        deadline,
+                    )
+                if score > best_score:
+                    best_score = score
+                    best_move = move
+                alpha = max(alpha, best_score)
+        except _SearchTimeout:
+            pass
         return best_move
 
-    def _minimax(self, board, reserves, to_move, player, opponent, depth,
-                 alpha, beta):
+    def _minimax(
+        self, board, reserves, to_move, player, opponent, depth, alpha, beta, deadline
+    ):
         """Return a terminal-only alpha-beta score from player's perspective."""
+        if time.perf_counter() >= deadline:
+            raise _SearchTimeout
         if depth == 0:
+            # todo: return evaluate once the heuristic is ready, for now return neutral score <--- Jacob's work
             return 0
+        # if depth == 0:
+        #     return self.evaluate(
+        #         board, reserves, player, opponent
+        #     )
 
+        # todo: apply tactical move ordering at every search node
+        # current: recursive nodes keep get_valid_moves order
+        # todo: cache scores by state, depth, and player to move
+        # current: repeated states are searched again
         moves = get_valid_moves(board, reserves, to_move)
         if not moves:
             return -WIN_SCORE if to_move == player else WIN_SCORE
@@ -78,9 +127,17 @@ class StudentAgent(Agent):
             elif winner == opponent:
                 score = -WIN_SCORE
             else:
-                score = self._minimax(next_board, next_reserves, 3 - to_move,
-                                      player, opponent, depth - 1,
-                                      alpha, beta)
+                score = self._minimax(
+                    next_board,
+                    next_reserves,
+                    3 - to_move,
+                    player,
+                    opponent,
+                    depth - 1,
+                    alpha,
+                    beta,
+                    deadline,
+                )
             if maximizing:
                 best_score = max(best_score, score)
                 alpha = max(alpha, best_score)
@@ -110,40 +167,46 @@ class StudentAgent(Agent):
         - Double Threats: TBD
         - Vulnerability: check the opponent's reserves and bigger pieces they can move from the board
         """
-        #TODO find time / space complexities
-        #TODO consider last mover
+        # todo: combine the four component scores into one cheap integer
+        # current: search does not call evaluate and this method is unfinished
+        # todo: benchmark evaluation cost before increasing search depth
+        # current: terminal-only search avoids all heuristic work
         raise NotImplementedError
 
     def _score_lines(self, board, reserves, player, opponent):
         """how close we are to a line vs them"""
-        #TODO
+        # todo: reward our viable lines and penalize the opponent's
+        # current: _line_features extracts line ownership but assigns no score
         raise NotImplementedError
 
     def _score_reserves(self, board, reserves, player, opponent):
         """what the pieces left in reserve are worth"""
-        #TODO tune how much we value each size and if we want to take in any more context 
+        # todo: score the weighted reserve difference by piece size
+        # current: _reserve_counts only returns the available counts
         raise NotImplementedError
 
     def _score_threats(self, board, reserves, player, opponent):
         """threats for us + them"""
-        #TODO score threats
+        # todo: score immediate wins, forced blocks, and fork threats for both players
+        # current: _winning_moves only lists immediate wins
         raise NotImplementedError
 
     def _score_vulnerability(self, board, reserves, player, opponent):
         """pieces that could get covered or uncovered"""
-        #TODO work out how vulnerable we are to them + vice versa
+        # todo: score pieces that can be covered or reveal a dangerous piece below
+        # current: _can_cover and _piece_below expose the needed facts without scoring them
         raise NotImplementedError
 
     def _line_features(self, owners, sizes, player, opponent):
         """line -> piece sizes + empty spots, obstacle -> skip"""
         features = []
-        
+
         for cells in LINES[WIN_LENGTH]:
             own_sizes = []
             opponent_sizes = []
             empty_count = 0
             blocked = False
-            
+
             for r, c in cells:
                 owner = owners[r, c]
                 if owner == OBSTACLE:
@@ -156,23 +219,25 @@ class StudentAgent(Agent):
                     opponent_sizes.append(int(sizes[r, c]))
                 else:
                     empty_count += 1
-                    
+
             if blocked:
                 continue
             # keep mixed lines too, smaller opponent pieces can get covered
-            features.append({
-                "cells": cells,
-                "own_sizes": tuple(own_sizes),
-                "opponent_sizes": tuple(opponent_sizes),
-                "empty_count": empty_count,
-            })
+            features.append(
+                {
+                    "cells": cells,
+                    "own_sizes": tuple(own_sizes),
+                    "opponent_sizes": tuple(opponent_sizes),
+                    "empty_count": empty_count,
+                }
+            )
         return features
 
     def _reserve_counts(self, reserves, player):
         """pieces left in reserve, small -> large"""
         counts = []
         for count in reserves[player]:
-            counts.append(int(count)) # handle np int
+            counts.append(int(count))  # handle np int
         return tuple(counts)
 
     def _available_sizes(self, owners, sizes, reserves, player):
@@ -182,7 +247,7 @@ class StudentAgent(Agent):
         for size in range(NUM_SIZES):
             if reserves[player, size] > 0:
                 available[size] = True
-                
+
         if ALLOW_MOVES:
             # only top pieces count, covered ones cant move
             for r in range(BOARD_SIZE):
@@ -190,7 +255,7 @@ class StudentAgent(Agent):
                     if owners[r, c] == player:
                         size = int(sizes[r, c])
                         available[size] = True
-                        
+
         available_sizes = []
         for size in range(NUM_SIZES):
             if available[size]:
@@ -209,7 +274,7 @@ class StudentAgent(Agent):
         """piece under the top one, nothing -> (EMPTY, -1)"""
         if board[row, col, SMALL] == OBSTACLE:
             return EMPTY, -1
-        
+
         found_top = False
         # biggest -> smallest, skip the first piece we find
         for size in range(NUM_SIZES - 1, -1, -1):
@@ -219,14 +284,16 @@ class StudentAgent(Agent):
             if found_top:
                 return owner, size
             found_top = True
-            
+
         # nothing under
         return EMPTY, -1
 
-    def _winning_moves(self, board, reserves, player):
+    def _winning_moves(self, board, reserves, player, deadline=None):
         """moves that win, w/o uncovering a win for them"""
         wins = []
         for move in get_valid_moves(board, reserves, player):
+            if deadline is not None and time.perf_counter() >= deadline:
+                raise _SearchTimeout
             # try on copies, dont modify the actual position
             next_board, next_reserves = copy_state(board, reserves)
             execute_move(next_board, next_reserves, player, move)
