@@ -94,3 +94,61 @@ The first depth-three version treated every forced loss as the same `-WIN_SCORE`
 ### Conclusion
 
 One additional terminal-search ply produced a large improvement against greedy without approaching the time limit. Keep depth three enabled. The next optimizations should preserve these decisions while reducing node count or enabling deeper completed iterations.
+
+## 2026-11-27 16:52 EST — stack-aware tactical ordering
+
+### Goal
+
+Compare `student-agent-tactical-ordering` at commit `50ff698` with the iterative-deepening snapshot at `7aa32da`. The new version orders every legal alpha-beta child, verifies complete root defenses, selectively verifies three-ply forks, detects anti-fork moves, and ranks stack-aware source/destination effects. Jacob's heuristic remains disconnected and unchanged.
+
+### Commands
+
+```bash
+git show 7aa32da:agents/student_agent.py > /tmp/student_agent_iterative_deepening.py
+git show 50ff698:agents/student_agent.py > /tmp/student_agent_tactical_ordering.py
+
+.venv/bin/python simulator.py --player_1 /tmp/student_agent_tactical_ordering.py --player_2 /tmp/student_agent_iterative_deepening.py --autoplay --autoplay_runs 20 --strict --seed 0 --quiet
+.venv/bin/python simulator.py --player_1 /tmp/student_agent_tactical_ordering.py --player_2 greedy_agent --autoplay --autoplay_runs 20 --strict --seed 0 --quiet
+.venv/bin/python simulator.py --player_1 /tmp/student_agent_iterative_deepening.py --player_2 greedy_agent --autoplay --autoplay_runs 20 --strict --seed 0 --quiet
+.venv/bin/python simulator.py --player_1 /tmp/student_agent_tactical_ordering.py --player_2 random_agent --autoplay --autoplay_runs 20 --strict --seed 0 --quiet
+.venv/bin/python validate_submission.py agents/student_agent.py
+```
+
+### Match results
+
+| Match | Tactical W-D-L | Tactical score | Opponent W-D-L | Max tactical step | Strikes / forfeits |
+|---|---:|---:|---:|---:|---:|
+| Tactical vs iterative-deepening snapshot | 2-16-2 | 50.0% | 2-16-2 | 1.75 s | 0 / 0 |
+| Tactical vs greedy | 15-5-0 | 87.5% | 0-5-15 | 1.75 s | 0 / 0 |
+| Iterative-deepening snapshot vs greedy | 15-3-2 | 82.5% | 2-3-15 | 0.35 s | 0 / 0 |
+| Tactical vs random | 20-0-0 | 100.0% | 0-0-20 | 1.25 s | 0 / 0 |
+
+The direct match against the previous alpha-beta snapshot was balanced. Against the same greedy baseline and seed range, tactical ordering improved score from 82.5% to 87.5% and changed two losses into draws or wins. Greedy can choose randomly among tied moves, so repeated W/D/L results may vary.
+
+### Search-cost experiment
+
+Depth-three root searches were run from the ten seed-0-through-seed-9 opening positions. Tactical ordering was compared with the same alpha-beta implementation using raw `get_valid_moves` order.
+
+| Ordering | Total nodes | Total runtime |
+|---|---:|---:|
+| Tactical | 23,194 | 3.000 s |
+| Helper order | 26,810 | 2.356 s |
+
+Tactical ordering reduced nodes by **13.5%**, but pattern scoring increased total runtime by **27.3%** on empty openings. This is an important limitation: the current value is tactical safety and better cutoffs, not raw opening speed. Exact checks are therefore restricted to the root and bounded candidate sets. The 1.75-second maximum indicates that some deeper iterations reached the internal deadline, but the last completed move remained legal and no tournament soft timeout occurred.
+
+### Correctness and tactical validation
+
+```text
+28 non-heuristic tests passed in 6.357 seconds
+validator: RESULT: PASS
+validator games: W4 D0 L0
+validator maximum step: 1.26 seconds
+validator strikes: 0
+validator forfeits: 0
+```
+
+The deterministic tests cover immediate wins, strong and weak blocks, genuine and fake forks, Large intersections, pinned defenders, poisoned covers, safe uncover-and-recover moves, self-stack relays, defensive gobbles, obstacle-aware incidence, board-top size availability, anti-fork defense, legal-move preservation, minimax equivalence, and node reduction.
+
+### Conclusion
+
+The feature preserves same-depth minimax values and all legal moves, passes strict validation, balances the previous iterative-deepening agent head-to-head, and improves the paired greedy score in this run. Its main cost is ordering overhead. Before raising search depth, optimize or cache root pattern analysis; do not expand exact fork verification deeper into the tree.
