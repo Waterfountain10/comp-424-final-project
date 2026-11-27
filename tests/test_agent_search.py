@@ -1,3 +1,4 @@
+import types
 import unittest
 from unittest.mock import patch
 
@@ -43,31 +44,31 @@ def exhaustive_minimax(board, reserves, to_move, player, opponent, depth):
     return max(scores) if to_move == player else min(scores)
 
 
-def exhaustive_best_move(board, reserves, player, opponent, depth):
-    """Return the first best root move from exhaustive minimax."""
-    best_move = None
-    best_score = -SEARCH_BOUND
-    for move in get_valid_moves(board, reserves, player):
-        next_board, next_reserves = copy_state(board, reserves)
-        execute_move(next_board, next_reserves, player, move)
-        winner = check_winner(next_board, player)
-        if winner == player:
-            score = WIN_SCORE + depth
-        elif winner == opponent:
-            score = -WIN_SCORE - depth
-        else:
-            score = exhaustive_minimax(
-                next_board,
-                next_reserves,
-                opponent,
-                player,
-                opponent,
-                depth - 1,
-            )
-        if score > best_score:
-            best_score = score
-            best_move = move
-    return best_move
+def exhaustive_move_score(board, reserves, move, player, opponent, depth):
+    """Return one root move's score under exhaustive minimax."""
+    next_board, next_reserves = copy_state(board, reserves)
+    execute_move(next_board, next_reserves, player, move)
+    winner = check_winner(next_board, player)
+    if winner == player:
+        return WIN_SCORE + depth
+    if winner == opponent:
+        return -WIN_SCORE - depth
+    return exhaustive_minimax(
+        next_board,
+        next_reserves,
+        opponent,
+        player,
+        opponent,
+        depth - 1,
+    )
+
+
+def exhaustive_best_score(board, reserves, player, opponent, depth):
+    """Return the best root score under exhaustive minimax."""
+    return max(
+        exhaustive_move_score(board, reserves, move, player, opponent, depth)
+        for move in get_valid_moves(board, reserves, player)
+    )
 
 
 class AlphaBetaRegressionTests(unittest.TestCase):
@@ -103,7 +104,7 @@ class AlphaBetaRegressionTests(unittest.TestCase):
                 )
                 self.assertEqual(actual, expected)
 
-    def test_selected_moves_match_exhaustive_minimax(self):
+    def test_selected_moves_are_exhaustive_minimax_optimal(self):
         positions = [
             immediate_win_state(),
             opponent_threat_state(),
@@ -115,10 +116,10 @@ class AlphaBetaRegressionTests(unittest.TestCase):
 
         for index, (board, reserves) in enumerate(positions):
             with self.subTest(position=index):
-                expected = exhaustive_best_move(
+                expected_score = exhaustive_best_score(
                     board, reserves, PLAYER_1, PLAYER_2, SEARCH_DEPTH
                 )
-                actual = self.agent._search_root(
+                actual_move = self.agent._search_root(
                     board,
                     reserves,
                     PLAYER_1,
@@ -126,7 +127,49 @@ class AlphaBetaRegressionTests(unittest.TestCase):
                     SEARCH_DEPTH,
                     float("inf"),
                 )
-                self.assertEqual(actual, expected)
+                actual_score = exhaustive_move_score(
+                    board,
+                    reserves,
+                    actual_move,
+                    PLAYER_1,
+                    PLAYER_2,
+                    SEARCH_DEPTH,
+                )
+                self.assertEqual(actual_score, expected_score)
+
+    def test_tactical_ordering_reduces_depth_three_opening_nodes(self):
+        board, reserves, _, _ = new_game(seed=0)
+        ordered = StudentAgent()
+        ordered._search_root(
+            board, reserves, PLAYER_1, PLAYER_2, 3, float("inf")
+        )
+
+        def helper_order_children(
+            agent,
+            state_board,
+            state_reserves,
+            to_move,
+            deadline,
+            preferred_move=None,
+            exact=False,
+        ):
+            children = []
+            for move in get_valid_moves(state_board, state_reserves, to_move):
+                next_board, next_reserves = copy_state(state_board, state_reserves)
+                execute_move(next_board, next_reserves, to_move, move)
+                winner = check_winner(next_board, to_move)
+                children.append((move, next_board, next_reserves, winner, {}))
+            return children
+
+        unordered = StudentAgent()
+        unordered._ordered_children = types.MethodType(
+            helper_order_children, unordered
+        )
+        unordered._search_root(
+            board, reserves, PLAYER_1, PLAYER_2, 3, float("inf")
+        )
+
+        self.assertLess(ordered.search_nodes, unordered.search_nodes)
 
     def test_iterative_deepening_keeps_last_completed_move(self):
         board, reserves, _, _ = new_game(seed=0)
