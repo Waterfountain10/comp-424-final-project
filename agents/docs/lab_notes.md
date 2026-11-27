@@ -34,3 +34,27 @@ The student agent played legally with no strikes but lost by line after 86 plies
 ### Next hypothesis
 
 Connecting Jacob's heuristic to the depth-limit leaf score should reduce repetitive draws and improve wins against greedy. After that, test iterative deepening, tactical move ordering, and fork detection as separate changes against this fixed-seed baseline.
+
+## 2026-11-27 12:51 EST — alpha-beta regression test
+
+### Goal
+
+Confirm that alpha-beta pruning preserves the scores and selected moves of exhaustive terminal-only minimax at the same depth.
+
+### Commands
+
+```bash
+.venv/bin/python -m unittest tests.test_agent_search -v
+.venv/bin/python -m unittest tests.test_smoke tests.test_fixtures tests.test_agent_contract tests.test_agent_wins tests.test_agent_defense tests.test_agent_search -v
+```
+
+### Results
+
+- Alpha-beta scores matched exhaustive minimax on eight deterministic positions.
+- Selected root moves matched exhaustive minimax on six deterministic positions.
+- The dedicated regression suite passed 2/2 tests in 0.567 seconds.
+- The completed non-heuristic suite passed 14/14 tests in 0.624 seconds.
+
+### Conclusion
+
+The current pruning implementation changes search cost without changing terminal-only minimax decisions on the regression corpus. Keep this test as a correctness gate for iterative deepening, move ordering, and caching.
