@@ -57,4 +57,9 @@ Planned verification:
 - Limiting iterative deepening to depth 1 or 2 matches the exhaustive reference at the same depth.
 - Run automated tests, official validation, and a small paired greedy-agent smoke benchmark under strict timing.
 
-**Result:** pending workflow run for iterative-deepening commit (to be updated after execution).
+**Observed results (Python 3.11 / GitHub Actions):**
+- Initial iterative deepening version (commit `b08241b`, run [46048780111](https://github.com/Waterfountain10/comp-424-final-project/actions/runs/46048780111)): all 6 new search tests passed, but the full suite failed 1/18 (defensive immediate-win regression). Validation and paired benchmark were skipped.
+- Diagnosis: terminal-only search assigned the same `-1,000,000` to immediate losses and later forced losses. At deeper horizons a tie could replace a safe earlier-depth move with an immediate losing move.
+- Correction (commit `f79ca0a`): add a small mate-distance preference inside terminal win/loss scoring, while keeping non-terminal leaves neutral. Update the exhaustive reference to verify the changed scores.
+- Corrected version, run [46048935462](https://github.com/Waterfountain10/comp-424-final-project/actions/runs/46048935462): **6/6 search tests passed; 18/18 full-suite tests passed; official submission validation passed**.
+- The paired greedy benchmark in this run was still running when these notes were updated; record W/D/L after completion. This is a smoke experiment, not a meaningful win-rate estimate.
