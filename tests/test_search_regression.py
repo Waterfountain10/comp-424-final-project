@@ -4,7 +4,7 @@ import time
 import unittest
 from unittest.mock import patch
 
-from agents.student_agent import StudentAgent, WIN_SCORE, _SearchTimeout
+from agents.student_agent import StudentAgent, WIN_SCORE, MATE_PREFERENCE, _SearchTimeout
 from constants import PLAYER_1, PLAYER_2
 from helpers import (
     check_winner, copy_state, execute_move, get_valid_moves, new_game,
@@ -23,16 +23,16 @@ def exhaustive_minimax(board, reserves, to_move, player, opponent, depth, nodes=
         return 0
     moves = get_valid_moves(board, reserves, to_move)
     if not moves:
-        return -WIN_SCORE if to_move == player else WIN_SCORE
+        return (-WIN_SCORE + MATE_PREFERENCE - depth) if to_move == player else (WIN_SCORE - MATE_PREFERENCE + depth)
     scores = []
     for move in moves:
         child_board, child_reserves = copy_state(board, reserves)
         execute_move(child_board, child_reserves, to_move, move)
         winner = check_winner(child_board, to_move)
         if winner == player:
-            score = WIN_SCORE
+            score = WIN_SCORE - MATE_PREFERENCE + depth
         elif winner == opponent:
-            score = -WIN_SCORE
+            score = -WIN_SCORE + MATE_PREFERENCE - depth
         else:
             score = exhaustive_minimax(
                 child_board, child_reserves, 3 - to_move,
@@ -58,7 +58,7 @@ def exhaustive_root(board, reserves, player, depth):
         execute_move(child_board, child_reserves, player, move)
         winner = check_winner(child_board, player)
         if winner == opponent:
-            score = -WIN_SCORE
+            score = -WIN_SCORE + MATE_PREFERENCE - depth
         else:
             score = exhaustive_minimax(
                 child_board, child_reserves, opponent, player,

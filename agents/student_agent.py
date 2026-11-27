@@ -22,6 +22,7 @@ from store import register_agent
 MAX_SEARCH_DEPTH = 4
 SEARCH_MARGIN = 0.25
 WIN_SCORE = 1_000_000
+MATE_PREFERENCE = 100  # prefer earlier wins and later losses
 
 
 class _SearchTimeout(Exception):
@@ -57,7 +58,7 @@ class StudentAgent(Agent):
                     board, reserves, player, opponent, depth, deadline
                 )
                 best_completed_move = candidate
-                if score == WIN_SCORE:
+                if score >= WIN_SCORE - MATE_PREFERENCE:
                     # A forced win was proven at this depth.
                     break
         except _SearchTimeout:
@@ -69,7 +70,7 @@ class StudentAgent(Agent):
         """Return the move and score from one fully completed search depth."""
         moves = get_valid_moves(board, reserves, player)
         best_move = moves[0]
-        best_score = -WIN_SCORE
+        best_score = -WIN_SCORE + MATE_PREFERENCE - depth
         alpha, beta = -WIN_SCORE, WIN_SCORE
 
         for move in moves:
@@ -80,9 +81,9 @@ class StudentAgent(Agent):
             winner = check_winner(child_board, player)
 
             if winner == player:
-                score = WIN_SCORE
+                score = WIN_SCORE - MATE_PREFERENCE + depth
             elif winner == opponent:
-                score = -WIN_SCORE
+                score = -WIN_SCORE + MATE_PREFERENCE - depth
             else:
                 score = self._minimax(
                     child_board, child_reserves, opponent, player, opponent,
@@ -111,7 +112,7 @@ class StudentAgent(Agent):
         # current: repeated states are searched again
         moves = get_valid_moves(board, reserves, to_move)
         if not moves:
-            return -WIN_SCORE if to_move == player else WIN_SCORE
+            return (-WIN_SCORE + MATE_PREFERENCE - depth) if to_move == player else (WIN_SCORE - MATE_PREFERENCE + depth)
 
         maximizing = to_move == player
         best_score = -WIN_SCORE if maximizing else WIN_SCORE
@@ -120,9 +121,9 @@ class StudentAgent(Agent):
             execute_move(next_board, next_reserves, to_move, move)
             winner = check_winner(next_board, to_move)
             if winner == player:
-                score = WIN_SCORE
+                score = WIN_SCORE - MATE_PREFERENCE + depth
             elif winner == opponent:
-                score = -WIN_SCORE
+                score = -WIN_SCORE + MATE_PREFERENCE - depth
             else:
                 score = self._minimax(
                     next_board,
