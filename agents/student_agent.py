@@ -2,7 +2,7 @@
 from agents.agent import Agent
 from store import register_agent
 from helpers import (Move, get_valid_moves, execute_move, check_winner,
-                     check_endgame, random_move, copy_state, top_view, LINES)
+                     check_endgame, copy_state, top_view, LINES)
 from constants import *
 import numpy as np
 import time
@@ -27,8 +27,14 @@ class StudentAgent(Agent):
         # helpers.get_valid_moves / check_winner already respect them; your own
         # move generator and evaluation function must too.
         
-        # TODO: replace with your search. Keep (time.perf_counter() - start) < STEP_TIME_LIMIT - margin.
-        return random_move(board, reserves, player)
+        # Keep a legal move ready before doing any tactical checks or search.
+        moves = get_valid_moves(board, reserves, player)
+        fallback = moves[0]
+
+        wins = self._winning_moves(board, reserves, player)
+        if wins:
+            return wins[0]
+        return fallback
 
     def evaluate(self, board, reserves, player, opponent) -> int:
         """
