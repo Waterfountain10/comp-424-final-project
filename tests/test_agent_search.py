@@ -1,6 +1,8 @@
 import unittest
+from unittest.mock import patch
 
-from agents.student_agent import SEARCH_DEPTH, WIN_SCORE, StudentAgent
+from agents.student_agent import (_SearchTimeout, SEARCH_BOUND, SEARCH_DEPTH,
+                                  WIN_SCORE, StudentAgent)
 from constants import PLAYER_1, PLAYER_2
 from helpers import (check_winner, copy_state, execute_move, get_valid_moves,
                      new_game)
@@ -15,7 +17,8 @@ def exhaustive_minimax(board, reserves, to_move, player, opponent, depth):
 
     moves = get_valid_moves(board, reserves, to_move)
     if not moves:
-        return -WIN_SCORE if to_move == player else WIN_SCORE
+        score = WIN_SCORE + depth
+        return -score if to_move == player else score
 
     scores = []
     for move in moves:
@@ -23,9 +26,9 @@ def exhaustive_minimax(board, reserves, to_move, player, opponent, depth):
         execute_move(next_board, next_reserves, to_move, move)
         winner = check_winner(next_board, to_move)
         if winner == player:
-            score = WIN_SCORE
+            score = WIN_SCORE + depth
         elif winner == opponent:
-            score = -WIN_SCORE
+            score = -WIN_SCORE - depth
         else:
             score = exhaustive_minimax(
                 next_board,
@@ -43,15 +46,15 @@ def exhaustive_minimax(board, reserves, to_move, player, opponent, depth):
 def exhaustive_best_move(board, reserves, player, opponent, depth):
     """Return the first best root move from exhaustive minimax."""
     best_move = None
-    best_score = -WIN_SCORE
+    best_score = -SEARCH_BOUND
     for move in get_valid_moves(board, reserves, player):
         next_board, next_reserves = copy_state(board, reserves)
         execute_move(next_board, next_reserves, player, move)
         winner = check_winner(next_board, player)
         if winner == player:
-            score = WIN_SCORE
+            score = WIN_SCORE + depth
         elif winner == opponent:
-            score = -WIN_SCORE
+            score = -WIN_SCORE - depth
         else:
             score = exhaustive_minimax(
                 next_board,
@@ -94,8 +97,8 @@ class AlphaBetaRegressionTests(unittest.TestCase):
                     player,
                     opponent,
                     SEARCH_DEPTH,
-                    -WIN_SCORE,
-                    WIN_SCORE,
+                    -SEARCH_BOUND,
+                    SEARCH_BOUND,
                     float("inf"),
                 )
                 self.assertEqual(actual, expected)
@@ -115,11 +118,29 @@ class AlphaBetaRegressionTests(unittest.TestCase):
                 expected = exhaustive_best_move(
                     board, reserves, PLAYER_1, PLAYER_2, SEARCH_DEPTH
                 )
-                call_board, call_reserves = copy_state(board, reserves)
-                actual = self.agent.step(
-                    call_board, call_reserves, PLAYER_1, PLAYER_2
+                actual = self.agent._search_root(
+                    board,
+                    reserves,
+                    PLAYER_1,
+                    PLAYER_2,
+                    SEARCH_DEPTH,
+                    float("inf"),
                 )
                 self.assertEqual(actual, expected)
+
+    def test_iterative_deepening_keeps_last_completed_move(self):
+        board, reserves, _, _ = new_game(seed=0)
+        moves = get_valid_moves(board, reserves, PLAYER_1)
+
+        with patch.object(self.agent, "_winning_moves", return_value=[]), patch.object(
+            self.agent,
+            "_search_root",
+            side_effect=(moves[0], moves[1], _SearchTimeout()),
+        ), patch("agents.student_agent.MAX_SEARCH_DEPTH", 4):
+            actual = self.agent.step(board, reserves, PLAYER_1, PLAYER_2)
+
+        self.assertEqual(actual, moves[1])
+        self.assertEqual(self.agent.last_completed_depth, 3)
 
 
 if __name__ == "__main__":
