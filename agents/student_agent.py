@@ -23,6 +23,7 @@ MAX_SEARCH_DEPTH = 3  # todo: raise after evaluation and move ordering are faste
 SEARCH_MARGIN = 0.25
 WIN_SCORE = 1_000_000
 SEARCH_BOUND = WIN_SCORE * 2
+WEIGHTS = {"lines": 1, "reserves": 1, "threats": 1, "vulnerability": 1}
 MAX_FORK_CANDIDATES = 4
 MAX_ANTI_FORK_BRANCHING = 60
 
@@ -530,9 +531,8 @@ class StudentAgent(Agent):
 
     def evaluate(self, board, reserves, player, opponent) -> int:
         """
-        Return a score of the board from the perspective of player.
-        Higher is better for player (us)
-        Should stay relatively cheap as will be called many times during search.
+        Board score, positive is better for player
+        Should stay relatively cheap as will be called many times during search
 
         Strategy:
         - Line score:
@@ -544,38 +544,164 @@ class StudentAgent(Agent):
               they own all but one square, even if that last square has an opponent piece)
         - Reserves:
             - bigger pieces in reserves are worth more points as they give us great optionality in the future, small though cause we dont want to hoard
-        - Double Threats: TBD
+        - Threats: small bonus for one winning cell, bigger bonus for 2 or more
         - Vulnerability: check the opponent's reserves and bigger pieces they can move from the board
         """
-        # todo: combine the four component scores into one cheap integer
-        # current: search does not call evaluate and this method is unfinished
-        # todo: benchmark evaluation cost before increasing search depth
-        # current: terminal-only search avoids all heuristic work
-        raise NotImplementedError
+        # TODO: benchmark evaluation cost before increasing search depth
+        #TODO find time / space complexities
+        #TODO consider last mover
+        
+        score = WEIGHTS["lines"] * self._score_lines(board, reserves, player, opponent)
+        score += WEIGHTS["reserves"] * self._score_reserves(board, reserves, player, opponent)
+        score += WEIGHTS["threats"] * self._score_threats(board, reserves, player, opponent)
+        score += WEIGHTS["vulnerability"] * self._score_vulnerability(board, reserves, player, opponent)
+        
+        return score
 
     def _score_lines(self, board, reserves, player, opponent):
         """how close we are to a line vs them"""
-        # todo: reward our viable lines and penalize the opponent's
-        # current: _line_features extracts line ownership but assigns no score
-        raise NotImplementedError
+        owners, sizes = top_view(board)
+        lines = self._line_features(owners, sizes, player, opponent)
+        line_base = 10
+        size_bonus = 2
+        win_bonus = 10000
+        
+        score = 0
+       
+        # get score for both sides then subtract
+        # so we dont have to increment and decrement as we go
+        for side in [player, opponent]:
+            side_score = 0
+            moves = None
+            
+            for line in lines:
+                if side == player:
+                    piece_sizes = line["own_sizes"] # ex. (0,2) means 2 peices 1 small, 1 large in this line
+                    other_sizes = line["opponent_sizes"]
+                else: # opponent
+                    piece_sizes = line["opponent_sizes"]
+                    other_sizes = line["own_sizes"]
+                    
+                count = len(piece_sizes)
+                
+                # nothing in line -> no points, skip to next line
+                if count == 0:
+                    continue 
+                
+                # opponent has no pieces in this line
+                if len(other_sizes) == 0:
+                    side_score += line_base ** count # exponential
+                    for size in piece_sizes: # bigger the better!
+                        side_score += size_bonus * (size + 1)
+                        
+                # if all but one, keep adding to the score, otherwise stop for that line,
+                if count != WIN_LENGTH - 1:
+                    continue
+               
+                # get cell we need to cover to win
+                for r, c in line["cells"]:
+                    if owners[r, c] != side:
+                        target = (r, c)
+                        break # we already know 3 filled cells so finding an empty means we can break
+                
+                # only generate moves if gives useful info, doing at top would waste compute
+                if moves is None:
+                    moves = get_valid_moves(board, reserves, side)
+                    
+                # aiming to fill the target cell (or cover)
+                for move in moves:
+                    if move.dest != target:
+                        continue
+                    
+                    # dont wanna corrupt, so copy then try 
+                    next_board, next_reserves = copy_state(board, reserves)
+                    execute_move(next_board, next_reserves, side, move)
+                    next_owners, _ = top_view(next_board)
+                    
+                    # moving from this line might leave a new gap
+                    complete = True
+                    for r, c in line["cells"]:
+                        if next_owners[r, c] != side:
+                            complete = False
+                            break
+                        
+                    # uncovered their line so no good
+                    if complete and check_winner(next_board, side) == side:
+                        side_score += win_bonus
+                        break
+                        
+            if side == player:
+                score += side_score
+            else:
+                score -= side_score
+        return score
 
     def _score_reserves(self, board, reserves, player, opponent):
         """what the pieces left in reserve are worth"""
-        # todo: score the weighted reserve difference by piece size
-        # current: _reserve_counts only returns the available counts
-        raise NotImplementedError
+        ours = self._reserve_counts(reserves, player)
+        theirs = self._reserve_counts(reserves, opponent)
+        score = 0
+        for size in range(NUM_SIZES):
+            # difference in peices weighted by size
+            score += (size + 1) * (ours[size] - theirs[size])
+
+        # spare large can cover a medium w/o moving anything off our line
+        if ours[LARGE] > 0:
+            score += 2
+        if theirs[LARGE] > 0:
+            score -= 2
+            
+        return score
 
     def _score_threats(self, board, reserves, player, opponent):
-        """threats for us + them"""
-        # todo: score immediate wins, forced blocks, and fork threats for both players
-        # current: _winning_moves only lists immediate wins
-        raise NotImplementedError
+        """winning cells for us vs them"""
+        
+        score = 0
+        for side, sign in [(player, 1), (opponent, -1)]:
+            targets = set() # DISTINCT winning cells, if len > 1 theres a fork
+            
+            for move in self._winning_moves(board, reserves, side):
+                targets.add(move.dest)
+                
+            # weight 2 ways to win same as >2
+            if len(targets) >= 2:
+                score += sign * 1000
+            elif len(targets) == 1:
+                score += sign # line score already gives a bonus for this
+                
+        return score
 
     def _score_vulnerability(self, board, reserves, player, opponent):
-        """pieces that could get covered or uncovered"""
-        # todo: score pieces that can be covered or reveal a dangerous piece below
-        # current: _can_cover and _piece_below expose the needed facts without scoring them
-        raise NotImplementedError
+        """
+        asks for each side
+            for each top piece that side has: 
+                1. can opponent cover?
+                2. if we can move it, what would that uncover?
+        """
+        
+        owners, sizes = top_view(board)
+        score = 0
+        
+        # our piece at risk -> -1
+        # theirs piece at risk -> +1
+        for side, other, penalty in ((player, opponent, -1), (opponent, player, 1)):
+            available = self._available_sizes(owners, sizes, reserves, other)
+            
+            for r in range(BOARD_SIZE):
+                for c in range(BOARD_SIZE):
+                    if owners[r, c] != side:
+                        continue
+                    
+                    # other side has a bigger piece they can put here
+                    if self._can_cover(sizes[r, c], available):
+                        score += penalty
+                        
+                    if ALLOW_MOVES:
+                        below, _ = self._piece_below(board, r, c)
+                        # moving this piece would uncover one of theirs
+                        if below == other:
+                            score += penalty
+        return score
 
     def _line_features(self, owners, sizes, player, opponent):
         """line -> piece sizes + empty spots, obstacle -> skip"""
