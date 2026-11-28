@@ -152,3 +152,67 @@ The deterministic tests cover immediate wins, strong and weak blocks, genuine an
 ### Conclusion
 
 The feature preserves same-depth minimax values and all legal moves, passes strict validation, balances the previous iterative-deepening agent head-to-head, and improves the paired greedy score in this run. Its main cost is ordering overhead. Before raising search depth, optimize or cache root pattern analysis; do not expand exact fork verification deeper into the tree.
+
+## 2026-11-28 05:08 EST — Jacob heuristic integration experiment
+
+### Goal
+
+Merge Jacob's heuristic implementation from `origin/main` (`1348535`) into tactical ordering, verify its acceptance tests, and determine whether activating it improves the tactical agent enough to merge into `main`.
+
+### Integration
+
+Commit `5294ad5` merges `origin/main` into `william-tactical-ordering`. The resolved `student_agent.py` retains tactical ordering and Jacob's implementations of:
+
+- `evaluate`;
+- `_score_lines`;
+- `_score_reserves`;
+- `_score_threats`;
+- `_score_vulnerability`;
+- the configurable `WEIGHTS` dictionary.
+
+All six heuristic acceptance tests pass. The production search still returns zero at non-terminal depth-limit leaves unless an activation experiment proves beneficial.
+
+### Experiment 1: evaluation at every depth-limit leaf
+
+The temporary variant replaced the neutral depth-limit score with:
+
+```python
+return self.evaluate(board, reserves, player, opponent)
+```
+
+On opening seeds 0–2, every first move reached the 1.75-second internal deadline without completing depth two:
+
+| Seed | Step time | Last completed depth | Nodes reached |
+|---:|---:|---:|---:|
+| 0 | 1.751 s | 0 | 449 |
+| 1 | 1.750 s | 0 | 456 |
+| 2 | 1.753 s | 0 | 457 |
+
+The expensive line and threat components generate and simulate legal moves inside evaluation. Calling them at every leaf is therefore incompatible with the current search budget. This activation was rejected.
+
+### Experiment 2: cached root tie-break evaluation
+
+A second temporary variant kept terminal-only minimax but evaluated each root child once, caching the score across iterative-deepening iterations. It completed depth three on openings in roughly 0.50 seconds, so it was tested directly against the previous tactical-ordering snapshot.
+
+```bash
+.venv/bin/python simulator.py --player_1 /tmp/student_agent_tactical_heuristic.py --player_2 /tmp/student_agent_tactical_ordering.py --autoplay --autoplay_runs 20 --strict --seed 0 --quiet
+```
+
+| Agent | W | D | L | Score | Max step | Strikes / forfeits |
+|---|---:|---:|---:|---:|---:|---:|
+| Tactical + heuristic root tie-break | 3 | 9 | 8 | 37.5% | 0.97 s | 0 / 0 |
+| Tactical ordering snapshot | 8 | 9 | 3 | 62.5% | 1.75 s | 0 / 0 |
+
+The heuristic tie-break strongly preferred opening Large pieces: on seed 0 at `(0,0)`, the total scores were Small `34`, Medium `39`, and Large `45`. This conflicts with the tactical agent's reserve-efficient tie policy and performed substantially worse head-to-head.
+
+A small reserve-weight pilot (`WEIGHTS["reserves"] = 8`) reduced the Large-opening preference but still scored only 37.5% over four direct games. It was also rejected; four games are not enough to claim a tuned weight improvement.
+
+### Decision
+
+- Keep Jacob's completed heuristic methods integrated and tested.
+- Do **not** call the full evaluator at every leaf.
+- Do **not** use the current evaluator as a root tie-break.
+- Do **not** merge `william-tactical-ordering` into `main` based on these heuristic results.
+- Future work should make a genuinely cheap static evaluator, then tune weights on separate training seeds before rerunning held-out paired matches.
+
+The rejected activation variants existed only in `/tmp`; neither was committed.
